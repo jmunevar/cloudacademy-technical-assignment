@@ -1,4 +1,4 @@
-# Cloud Academy - Lab Operations Associate Assignment
+# Cloud Academy - Lab Operations Specialist Assignment
 
 [TOC]
 
