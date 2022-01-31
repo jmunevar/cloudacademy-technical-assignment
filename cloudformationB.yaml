@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Lab Operations Assignment Task 3
+Parameters:
+  KeyName:
+    Description: Keypair name
+    Type: AWS::EC2::KeyPair::KeyName
+Mappings:
+  SubnetConfig:
+    VPC:
+      CIDR: 10.0.0.0/20
+    DevSubnet:
+      CIDR: 10.0.0.0/24
+      AZ: us-west-2a
+    BuildSubnet:
+      CIDR: 10.0.1.0/24
+      AZ: us-west-2a
+Resources:
+  JenkinsBuildInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: ami-03d5c68bab01f3496
+      InstanceType: t2.micro
+      CreditSpecification:
+        CPUCredits: standard
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !GetAtt 
+          - BuildSecurityGroup
+          - GroupId
+      SubnetId: !Ref BuildSubnet
+      Tags:
+        - Key: Type
+          Value: Build
+      UserData: !Base64 
+        |
+        #!/bin/bash
+        set -x
+
+        apt-get update && apt-get install -y ca-certificates daemon openjdk-8-jdk daemon apt-transport-https curl software-properties-common wget net-tools psmisc
+        
+        wget https://clouda-labs-assets.s3.us-west-2.amazonaws.com/static-analysis-and-alerting-infrastructure-as-code/jenkins_2.249.3_all.deb -O jenkins.deb
+        dpkg -i jenkins.deb
+        
+        iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
+        sed -i 's/\(-jar$JENKINS_WAR\)/-Djenkins.install.runSetupWizard=false \1/' /etc/init.d/jenkins
+        
+        sleep 30
+        
+        FILE=/tmp/jenkins-cli.jar
+        wget http://localhost:8080/jnlpJars/jenkins-cli.jar -O "$FILE"
+        while [ ! -s "$FILE" ]; do
+            wget http://localhost:8080/jnlpJars/jenkins-cli.jar -O "$FILE"
+            sleep 1
+        done
+        sed -i 's%<useSecurity>true</useSecurity>%<useSecurity>false</useSecurity>%' /var/lib/jenkins/config.xml
+        sed -i '/<hudson>/ a   </disabledAdministrativeMonitors>' /var/lib/jenkins/config.xml
+        sed -i '/<hudson>/ a    <string>hudson.diagnosis.ReverseProxySetupMonitor</string>' /var/lib/jenkins/config.xml
+        sed -i '/<hudson>/ a   <disabledAdministrativeMonitors>' /var/lib/jenkins/config.xml
+        systemctl daemon-reload
+        systemctl restart jenkins
+
+        sleep 30
+
+        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080 install-plugin Git snsnotify
+
+        echo "<?xml version='1.1' encoding='UTF-8'?>" >> /var/lib/jenkins/org.jenkinsci.plugins.snsnotify.AmazonSNSNotifier.xml
+        echo "<org.jenkinsci.plugins.snsnotify.AmazonSNSNotifier_-DescriptorImpl plugin=\"snsnotify@1.13\">" >> /var/lib/jenkins/org.jenkinsci.plugins.snsnotify.AmazonSNSNotifier.xml
+        echo "  <defaultLocalCredential>true</defaultLocalCredential>" >> /var/lib/jenkins/org.jenkinsci.plugins.snsnotify.AmazonSNSNotifier.xml
+        echo "</org.jenkinsci.plugins.snsnotify.AmazonSNSNotifier_-DescriptorImpl>" >> /var/lib/jenkins/org.jenkinsci.plugins.snsnotify.AmazonSNSNotifier.xml
+
+        INSTANCE_URL=$(curl http://169.254.169.254/latest/meta-data/public-hostname)
+
+        echo "<?xml version='1.1' encoding='UTF-8'?>" >> /var/lib/jenkins/jenkins.model.JenkinsLocationConfiguration.xml
+        echo "<jenkins.model.JenkinsLocationConfiguration>" >> /var/lib/jenkins/jenkins.model.JenkinsLocationConfiguration.xml
+        echo "  <jenkinsUrl>http://${INSTANCE_URL}/</jenkinsUrl>" >> /var/lib/jenkins/jenkins.model.JenkinsLocationConfiguration.xml
+        echo "</jenkins.model.JenkinsLocationConfiguration>" >> /var/lib/jenkins/jenkins.model.JenkinsLocationConfiguration.xml
+        echo "<?xml version='1.1' encoding='UTF-8'?>" >> /var/lib/jenkins/jenkins.security.UpdateSiteWarningsConfiguration.xml
+        echo "<jenkins.security.UpdateSiteWarningsConfiguration>" >> /var/lib/jenkins/jenkins.security.UpdateSiteWarningsConfiguration.xml
+        echo "<ignoredWarnings>" >> /var/lib/jenkins/jenkins.security.UpdateSiteWarningsConfiguration.xml
+        echo "    <string>SECURITY-832</string>" >> /var/lib/jenkins/jenkins.security.UpdateSiteWarningsConfiguration.xml
+
+        echo "</ignoredWarnings>" >> /var/lib/jenkins/jenkins.security.UpdateSiteWarningsConfiguration.xml
+        echo "</jenkins.security.UpdateSiteWarningsConfiguration>" >> /var/lib/jenkins/jenkins.security.UpdateSiteWarningsConfiguration.xml
+
+        systemctl restart jenkins
+
+
+  DevVpc:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - VPC
+        - CIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Dev Vpc
+        - Key: Environment
+          Value: Dev
+  DevSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref DevVpc
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !FindInMap 
+        - SubnetConfig
+        - DevSubnet
+        - AZ
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - DevSubnet
+        - CIDR
+      Tags:
+        - Key: Name
+          Value: Dev Subnet
+        - Key: Environment
+          Value: Dev
+  DevInternetGatewayAttach:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref DevVpc
+      InternetGatewayId: !Ref DevInternetGateway
+  DevPublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref DevVpc
+  DevPublicRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref DevPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref DevInternetGateway
+  DevSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref DevSubnet
+      RouteTableId: !Ref DevPublicRouteTable
+  DevInternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+  BuildSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref DevVpc
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !FindInMap 
+        - SubnetConfig
+        - BuildSubnet
+        - AZ
+      CidrBlock: !FindInMap 
+        - SubnetConfig
+        - BuildSubnet
+        - CIDR
+      Tags:
+        - Key: Name
+          Value: Build Subnet
+        - Key: Environment
+          Value: Dev
+  BuildSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref BuildSubnet
+      RouteTableId: !Ref DevPublicRouteTable
+  BuildSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Allow incoming http, git, and ssh traffic'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '9418'
+          ToPort: '9418'
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref DevVpc
+      Tags:
+        - Key: Name
+          Value: Build Servers
+        - Key: Environment
+          Value: Dev
+
+Outputs:
+  JenkinsManagementUrl:
+    Description: Url to access the Jenkins management interface
+    Value: !Sub http://${JenkinsBuildInstance.PublicDnsName}/manage
