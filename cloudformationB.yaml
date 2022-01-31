@@ -38,7 +38,7 @@ Resources:
 
         apt-get update && apt-get install -y ca-certificates daemon openjdk-8-jdk daemon apt-transport-https curl software-properties-common wget net-tools psmisc
         
-        wget https://clouda-labs-assets.s3.us-west-2.amazonaws.com/static-analysis-and-alerting-infrastructure-as-code/jenkins_2.249.3_all.deb -O jenkins.deb
+        wget https://clouda-labs-assets.s3.us-west-2.amazonaws.com/static-analysis-and-alerting-infrastructure-as-code/jenkins_2.303.2_all.deb -O jenkins.deb
         dpkg -i jenkins.deb
         
         iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080

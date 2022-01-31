@@ -5,7 +5,7 @@ Mappings:
   UserConfig:
     Login:
       Name: student
-      Pass: password
+      Pass: h,q1y9v7$}tS
 Resources:
   DynamoLambda:
     DependsOn:
@@ -59,7 +59,7 @@ Resources:
       Role: !GetAtt 
         - DynamoAccessRole
         - Arn
-      Runtime: nodejs6.10
+      Runtime: nodejs12.x
       Timeout: 5
   DynamoTable:
     Type: 'AWS::DynamoDB::Table'
@@ -136,6 +136,13 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
+                  - dynamodb:GetItem
+                  - dynamodb:BatchGetItem
+                  - dynamodb:DescribeTable
+                  - dynamodb:ListTables
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:ConditionCheckItem
                   - 'elasticloadbalancing:Describe*'
                   - 'elasticloadbalancing:AddTags'
                   - 'elasticloadbalancing:ApplySecurityGroupsToLoadBalancer'
