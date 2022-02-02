@@ -1,6 +1,22 @@
 # Cloud Academy - Lab Operations Specialist Assignment
 
-[TOC]
+<!-- TOC depthFrom:2 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
+
+- [Create CloudFormation Stack A](#create-cloudformation-stack-a)
+	- [Task 1: Resolve CloudFormation Stack Deployment Errors](#task-1-resolve-cloudformation-stack-deployment-errors)
+		- [Resolve IAM User Creation Errors](#resolve-iam-user-creation-errors)
+		- [Resolve Lambda function creation errors](#resolve-lambda-function-creation-errors)
+	- [Task 2: Add missing IAM permissions for read-only access on DynamoDB items](#task-2-add-missing-iam-permissions-for-read-only-access-on-dynamodb-items)
+- [Create CloudFormation Stack B](#create-cloudformation-stack-b)
+	- [Task 3: Resolve Jenkins' SNS & Git plugin errors](#task-3-resolve-jenkins-sns-git-plugin-errors)
+		- [Update CloudFormation template's user data script](#update-cloudformation-templates-user-data-script)
+		- [Alternative resolution through downgrading any incompatible plugins based on the initial Jenkins version](#alternative-resolution-through-downgrading-any-incompatible-plugins-based-on-the-initial-jenkins-version)
+		- [Suggestions to improve the relevant CloudFormation template](#suggestions-to-improve-the-relevant-cloudformation-template)
+- [Python Comprehension](#python-comprehension)
+	- [Task 4: Evaluate and summarize Python code using Azure SDK](#task-4-evaluate-and-summarize-python-code-using-azure-sdk)
+- [References](#references)
+
+<!-- /TOC -->
 
 ## Create CloudFormation Stack A
 
